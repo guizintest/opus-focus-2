@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 15, 23, 42;
+  --background-end-rgb: 15, 23, 42;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(to bottom, transparent, rgb(var(--background-end-rgb))) rgb(var(--background-start-rgb));
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .page-transition-enter {
+    opacity: 0;
+  }
+
+  .page-transition-enter-active {
+    opacity: 1;
+    transition: opacity 200ms;
+  }
+
+  .page-transition-exit {
+    opacity: 1;
+  }
+
+  .page-transition-exit-active {
+    opacity: 0;
+    transition: opacity 200ms;
+  }
+}
+
+@layer components {
+  .territory-player {
+    filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.5));
+  }
+
+  .animate-pulse-slow {
+    animation: pulse 3s infinite;
+  }
+
+  .animate-float {
+    animation: float 3s infinite ease-in-out;
+  }
+
+  .animate-ripple {
+    animation: ripple 0.6s linear forwards;
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* Garantir que o conteúdo principal tenha uma transição suave */
+main {
+  transition: padding 200ms ease;
+}
