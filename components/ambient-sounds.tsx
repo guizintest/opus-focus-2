@@ -1,35 +1,37 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Volume2, VolumeX } from "lucide-react"
-import { useSound } from "@/contexts/sound-context"
 
 interface AmbientSoundsProps {
   scene: "warRoom" | "qg" | "shop"
 }
 
 export function AmbientSounds({ scene }: AmbientSoundsProps) {
-  const { enabled, volume, toggleSounds } = useSound()
+  const [enabled, setEnabled] = useState(false)
+  const [volume, setVolume] = useState(0.5)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
     if (!audioRef.current) return
 
-    // Definir o arquivo de áudio com base na cena
+    // Definir o arquivo de áudio com base na cena (simulado)
     let audioFile = ""
     switch (scene) {
       case "warRoom":
-        audioFile = "/sounds/war-room-ambient.mp3"
+        audioFile = "/sounds/ambient.mp3" // Arquivo fictício
         break
       case "qg":
-        audioFile = "/sounds/qg-ambient.mp3"
+        audioFile = "/sounds/ambient.mp3" // Arquivo fictício
         break
       case "shop":
-        audioFile = "/sounds/shop-ambient.mp3"
+        audioFile = "/sounds/ambient.mp3" // Arquivo fictício
         break
     }
 
-    audioRef.current.src = audioFile
+    // Simular a existência do arquivo
+    audioRef.current.src =
+      "data:audio/mpeg;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKpIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAA8AAANMYXZmNTcuODMuMTAwAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV"
     audioRef.current.loop = true
     audioRef.current.volume = volume
 
@@ -47,23 +49,9 @@ export function AmbientSounds({ scene }: AmbientSoundsProps) {
     }
   }, [scene, enabled, volume])
 
-  useEffect(() => {
-    if (!audioRef.current) return
-
-    if (enabled) {
-      audioRef.current.play().catch((error) => {
-        console.error("Erro ao reproduzir áudio ambiente:", error)
-      })
-    } else {
-      audioRef.current.pause()
-    }
-  }, [enabled])
-
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume
-    }
-  }, [volume])
+  const toggleSounds = () => {
+    setEnabled(!enabled)
+  }
 
   return (
     <div>

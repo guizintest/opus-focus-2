@@ -15,18 +15,22 @@ export function TopMenu({ activeItem }: TopMenuProps) {
   ]
 
   return (
-    <div className="bg-aoe-panel border-b border-aoe-border h-12 min-h-[3rem] flex-shrink-0 flex items-center px-4">
-      {menuItems.map((item) => (
-        <Link
-          key={item.id}
-          href={item.href}
-          className={`px-4 h-full flex items-center transition-colors duration-200 ${
-            activeItem === item.id ? "border-b-2 border-aoe-gold text-aoe-gold" : "text-aoe-muted hover:text-aoe-light"
-          }`}
-        >
-          {item.label}
-        </Link>
-      ))}
+    <div className="bg-aoe-panel border-b border-aoe-border h-12 flex items-center justify-center px-4">
+      <div className="flex items-center">
+        {menuItems.map((item) => (
+          <Link
+            key={item.id}
+            href={item.href}
+            className={`px-4 py-3 transition-colors duration-200 ${
+              activeItem === item.id
+                ? "border-b-2 border-aoe-gold text-aoe-gold"
+                : "text-aoe-muted hover:text-aoe-light"
+            }`}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </div>
     </div>
   )
 }

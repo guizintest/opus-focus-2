@@ -1,92 +1,87 @@
 "use client"
 
-import { useState } from "react"
-import { Clock, AlertTriangle, Flag } from "lucide-react"
+import { useState, useEffect } from "react"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
-interface LogEvent {
+interface Event {
   id: string
-  type: "info" | "success" | "warning" | "danger"
   message: string
-  time: string
+  type: string
+  timestamp: number
 }
 
-export function EventLog() {
-  const [events, setEvents] = useState<LogEvent[]>([
-    {
-      id: "e1",
-      type: "info",
-      message: "Bem-vindo ao War Room! Conquiste territórios e defenda-se da Névoa da Distração.",
-      time: "01:17 PM",
-    },
-    {
-      id: "e2",
-      type: "success",
-      message: "Você conquistou o território 'Planejamento Inicial'!",
-      time: "01:45 PM",
-    },
-    {
-      id: "e3",
-      type: "warning",
-      message: "A Névoa da Distração está atacando 'Revisão de Literatura'!",
-      time: "01:46 PM",
-    },
-    {
-      id: "e4",
-      type: "success",
-      message: "Você defendeu com sucesso o território 'Revisão de Literatura'!",
-      time: "01:47 PM",
-    },
-    {
-      id: "e5",
-      type: "success",
-      message: "Missão completada: 'Conquistar 3 territórios'",
-      time: "01:47 PM",
-    },
-  ])
+interface EventLogProps {
+  events?: Event[]
+}
 
-  const getEventIcon = (type: LogEvent["type"]) => {
-    switch (type) {
-      case "info":
-        return <Clock className="h-4 w-4 text-blue-400" />
-      case "success":
-        return <Flag className="h-4 w-4 text-green-400" />
-      case "warning":
-        return <AlertTriangle className="h-4 w-4 text-yellow-400" />
-      case "danger":
-        return <AlertTriangle className="h-4 w-4 text-red-400" />
+export function EventLog({ events = [] }: EventLogProps) {
+  const [localEvents, setLocalEvents] = useState<Event[]>(events)
+
+  // Adicionar alguns eventos de exemplo se não houver eventos
+  useEffect(() => {
+    if (events.length === 0 && localEvents.length === 0) {
+      setLocalEvents([
+        {
+          id: "event-1",
+          message: "Bem-vindo ao Mapa do Dia!",
+          type: "info",
+          timestamp: Date.now() - 60000,
+        },
+        {
+          id: "event-2",
+          message: "Selecione um hexágono para começar",
+          type: "info",
+          timestamp: Date.now() - 30000,
+        },
+        {
+          id: "event-3",
+          message: "Dica: Conquiste hexágonos para ganhar pontos de foco",
+          type: "info",
+          timestamp: Date.now(),
+        },
+      ])
+    } else if (events.length > 0) {
+      setLocalEvents(events)
     }
+  }, [events])
+
+  // Formatar timestamp
+  const formatTimestamp = (timestamp: number) => {
+    const date = new Date(timestamp)
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
   }
 
-  const getEventColor = (type: LogEvent["type"]) => {
+  // Obter classe de cor com base no tipo de evento
+  const getEventTypeClass = (type: string) => {
     switch (type) {
-      case "info":
-        return "text-blue-400"
       case "success":
         return "text-green-400"
       case "warning":
         return "text-yellow-400"
       case "danger":
         return "text-red-400"
+      case "info":
+      default:
+        return "text-blue-400"
     }
   }
 
   return (
     <div className="h-full flex flex-col">
       <div className="p-3 border-b border-aoe-border">
-        <h2 className="text-aoe-gold text-lg font-cinzel">Log de Eventos</h2>
+        <h3 className="text-aoe-gold font-cinzel">Registro de Eventos</h3>
       </div>
-
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
-        {events.map((event) => (
-          <div key={event.id} className="flex items-start gap-2">
-            <div className="mt-0.5">{getEventIcon(event.type)}</div>
-            <div className="flex-1">
-              <p className={`text-sm ${getEventColor(event.type)}`}>{event.message}</p>
-              <span className="text-xs text-aoe-muted">{event.time}</span>
+      <ScrollArea className="flex-1">
+        <div className="p-3 space-y-2">
+          {localEvents.map((event) => (
+            <div key={event.id} className="text-sm">
+              <span className="text-aoe-muted text-xs">{formatTimestamp(event.timestamp)}</span>
+              <span className={`ml-2 ${getEventTypeClass(event.type)}`}>{event.message}</span>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+          {localEvents.length === 0 && <div className="text-aoe-muted text-sm italic">Nenhum evento registrado</div>}
+        </div>
+      </ScrollArea>
     </div>
   )
 }

@@ -1,95 +1,117 @@
-import { Brain, Coffee, Crown, Clock } from "lucide-react"
+"use client"
+
+import { useState } from "react"
+import { Smile, Meh, Frown } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+
+type MoodType = "good" | "normal" | "bad"
 
 interface ResourceBarProps {
   focus: number
   recreation: number
-  mood: number
+  mood: MoodType
   dayProgress: number
+  onMoodChange: (mood: MoodType) => void
 }
 
-export function ResourceBar({ focus, recreation, mood, dayProgress }: ResourceBarProps) {
-  // Formatar o tempo restante
+export function ResourceBar({ focus, recreation, mood, dayProgress, onMoodChange }: ResourceBarProps) {
+  const [showMoodSelector, setShowMoodSelector] = useState(false)
+
+  // Formatar o tempo restante do dia (para demonstração)
   const formatTimeRemaining = () => {
-    // Simulando um dia de 8 horas
-    const totalMinutes = (8 * 60 * (100 - dayProgress)) / 100
-    const hours = Math.floor(totalMinutes / 60)
-    const minutes = Math.floor(totalMinutes % 60)
+    const hours = Math.floor(dayProgress / 60)
+    const minutes = dayProgress % 60
     return `${hours}h ${minutes}m`
-  }
-
-  // Determinar o status de humor
-  const getMoodStatus = () => {
-    if (mood >= 80) return "Excelente"
-    if (mood >= 60) return "Bom"
-    if (mood >= 40) return "Neutro"
-    if (mood >= 20) return "Baixo"
-    return "Crítico"
-  }
-
-  // Determinar a cor do humor
-  const getMoodColor = () => {
-    if (mood >= 80) return "text-green-400"
-    if (mood >= 60) return "text-lime-400"
-    if (mood >= 40) return "text-yellow-400"
-    if (mood >= 20) return "text-amber-400"
-    return "text-red-400"
   }
 
   return (
     <div className="bg-aoe-panel border-b border-aoe-border p-2 flex items-center justify-between">
-      {/* Logo/Nome do mapa */}
-      <div className="flex items-center">
-        <div className="bg-aoe-button px-3 py-1 rounded border border-aoe-border">
-          <h1 className="text-aoe-gold font-bold text-lg">War Room</h1>
-        </div>
-        <div className="ml-4 text-aoe-light text-sm">Mapa do Dia: Conquista Estratégica</div>
-      </div>
-
       {/* Recursos */}
       <div className="flex items-center space-x-6">
-        {/* Foco */}
+        {/* Pontos de Foco */}
         <div className="flex items-center">
-          <div className="flex items-center mr-2">
-            <Brain className="h-4 w-4 text-blue-400 mr-1" />
-            <span className="text-aoe-light text-sm">Foco:</span>
+          <div className="w-8 h-8 rounded-full bg-blue-900 flex items-center justify-center mr-2">
+            <span className="text-blue-200 font-bold text-sm">F</span>
           </div>
-          <div className="w-24 h-3 bg-gray-700 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-500" style={{ width: `${focus}%` }}></div>
+          <div>
+            <p className="text-aoe-light text-xs">Pontos de Foco</p>
+            <p className="text-aoe-gold font-bold">{focus}</p>
           </div>
-          <span className="ml-1 text-xs text-aoe-light">{focus}</span>
         </div>
 
-        {/* Pontos Recreativos */}
+        {/* Pontos de Recreação */}
         <div className="flex items-center">
-          <div className="flex items-center mr-2">
-            <Coffee className="h-4 w-4 text-green-400 mr-1" />
-            <span className="text-aoe-light text-sm">Recreação:</span>
+          <div className="w-8 h-8 rounded-full bg-green-900 flex items-center justify-center mr-2">
+            <span className="text-green-200 font-bold text-sm">R</span>
           </div>
-          <div className="w-24 h-3 bg-gray-700 rounded-full overflow-hidden">
-            <div className="h-full bg-green-500" style={{ width: `${recreation}%` }}></div>
+          <div>
+            <p className="text-aoe-light text-xs">Recreação</p>
+            <p className="text-aoe-gold font-bold">{recreation} min</p>
           </div>
-          <span className="ml-1 text-xs text-aoe-light">{recreation}</span>
         </div>
 
         {/* Humor */}
-        <div className="flex items-center">
-          <div className="flex items-center mr-2">
-            <Crown className="h-4 w-4 text-yellow-400 mr-1" />
-            <span className="text-aoe-light text-sm">Humor:</span>
+        <div className="flex items-center relative">
+          <div
+            className="w-8 h-8 rounded-full bg-purple-900 flex items-center justify-center mr-2 cursor-pointer"
+            onClick={() => setShowMoodSelector(!showMoodSelector)}
+          >
+            {mood === "good" && <Smile className="h-5 w-5 text-purple-200" />}
+            {mood === "normal" && <Meh className="h-5 w-5 text-purple-200" />}
+            {mood === "bad" && <Frown className="h-5 w-5 text-purple-200" />}
           </div>
-          <div className="flex items-center">
-            <span className={`text-sm ${getMoodColor()}`}>{getMoodStatus()}</span>
-            <div className="ml-2 w-16 h-3 bg-gray-700 rounded-full overflow-hidden">
-              <div className={`h-full ${getMoodColor().replace("text", "bg")}`} style={{ width: `${mood}%` }}></div>
-            </div>
+          <div>
+            <p className="text-aoe-light text-xs">Humor</p>
+            <p className="text-aoe-gold font-bold capitalize">
+              {mood === "good" && "Bom"}
+              {mood === "normal" && "Normal"}
+              {mood === "bad" && "Ruim"}
+            </p>
           </div>
-        </div>
 
-        {/* Tempo restante */}
-        <div className="flex items-center">
-          <Clock className="h-4 w-4 text-aoe-gold mr-1" />
-          <span className="text-aoe-light text-sm">Restante:</span>
-          <span className="ml-1 text-aoe-gold text-sm">{formatTimeRemaining()}</span>
+          {/* Seletor de humor */}
+          {showMoodSelector && (
+            <div className="absolute top-full left-0 mt-2 bg-aoe-panel border border-aoe-border rounded-md p-2 z-20 flex space-x-2">
+              <button
+                className={`p-1 rounded-md ${mood === "good" ? "bg-purple-900" : "hover:bg-aoe-dark-blue"}`}
+                onClick={() => {
+                  onMoodChange("good")
+                  setShowMoodSelector(false)
+                }}
+              >
+                <Smile className="h-6 w-6 text-purple-200" />
+              </button>
+              <button
+                className={`p-1 rounded-md ${mood === "normal" ? "bg-purple-900" : "hover:bg-aoe-dark-blue"}`}
+                onClick={() => {
+                  onMoodChange("normal")
+                  setShowMoodSelector(false)
+                }}
+              >
+                <Meh className="h-6 w-6 text-purple-200" />
+              </button>
+              <button
+                className={`p-1 rounded-md ${mood === "bad" ? "bg-purple-900" : "hover:bg-aoe-dark-blue"}`}
+                onClick={() => {
+                  onMoodChange("bad")
+                  setShowMoodSelector(false)
+                }}
+              >
+                <Frown className="h-6 w-6 text-purple-200" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Progresso do dia */}
+      <div className="flex items-center space-x-3">
+        <div className="text-right">
+          <p className="text-aoe-light text-xs">Tempo Restante</p>
+          <p className="text-aoe-gold font-bold">{formatTimeRemaining()}</p>
+        </div>
+        <div className="w-32">
+          <Progress value={dayProgress} max={100} className="h-2" />
         </div>
       </div>
     </div>

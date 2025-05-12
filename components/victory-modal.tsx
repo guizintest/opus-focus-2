@@ -9,7 +9,7 @@ interface VictoryModalProps {
   resources: {
     focus: number
     recreation: number
-    mood: number
+    mood: "good" | "normal" | "bad"
     dayProgress: number
   }
   completedMissions: number
@@ -21,7 +21,7 @@ export function VictoryModal({ resources, completedMissions, totalMissions, onCl
   const calculateScore = () => {
     // Cálculo de pontuação baseado nos recursos e missões
     const focusScore = resources.focus * 10
-    const moodBonus = resources.mood >= 70 ? 500 : resources.mood >= 50 ? 300 : 100
+    const moodBonus = resources.mood === "good" ? 500 : resources.mood === "normal" ? 300 : 100
     const missionBonus = (completedMissions / totalMissions) * 1000
 
     return Math.round(focusScore + moodBonus + missionBonus)
@@ -77,7 +77,7 @@ export function VictoryModal({ resources, completedMissions, totalMissions, onCl
             <div className="flex justify-between">
               <span className="text-aoe-muted">Humor Final</span>
               <span className="text-yellow-400">
-                {resources.mood >= 70 ? "Excelente" : resources.mood >= 50 ? "Bom" : "Regular"}
+                {resources.mood === "good" ? "Excelente" : resources.mood === "normal" ? "Bom" : "Regular"}
               </span>
             </div>
           </div>
