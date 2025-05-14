@@ -33,5 +33,5 @@ export interface AoE4ButtonProps
     VariantProps<typeof buttonVariants> {}
 
 export function AoE4Button({ className, variant, size, ...props }: AoE4ButtonProps) {
-  return <button className={cn(buttonVariants({ variant, size, className }))} {...props} />
+  return <button className={cn(buttonVariants({ variant, size, className }), "font-cinzel")} {...props} />
 }

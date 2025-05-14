@@ -3,17 +3,17 @@
 @tailwind utilities;
 
 :root {
-  /* Cores originais do tema Age of Empires */
-  --aoe-dark-blue: #0a101f;
-  --aoe-panel: #1a2234;
-  --aoe-panel-header: #2a3347;
-  --aoe-border: #3a4257;
-  --aoe-light: #e2e8f0;
-  --aoe-muted: #94a3b8;
-  --aoe-gold: #d4af37;
-  --aoe-button: #2a3347;
-  --aoe-button-hover: #3a4257;
-  --aoe-map-bg: #0f1525;
+  /* Updated colors to match the OPUS FOCUS theme */
+  --aoe-dark-blue: #0e1a2b; /* Darker navy blue background */
+  --aoe-panel: #152238; /* Slightly lighter panel background */
+  --aoe-panel-header: #1c2c45; /* Panel header background */
+  --aoe-border: #2a3a55; /* Border color */
+  --aoe-light: #e2e8f0; /* Light text */
+  --aoe-muted: #94a3b8; /* Muted text */
+  --aoe-gold: #d4af37; /* Gold accent color */
+  --aoe-button: #1c2c45; /* Button background */
+  --aoe-button-hover: #2a3a55; /* Button hover */
+  --aoe-map-bg: #0f1525; /* Map background */
 }
 
 @layer base {
@@ -52,6 +52,17 @@
   }
   .text-aoe-gold {
     color: var(--aoe-gold);
+  }
+
+  /* Difficulty colors */
+  .difficulty-easy {
+    @apply text-blue-400;
+  }
+  .difficulty-medium {
+    @apply text-purple-400;
+  }
+  .difficulty-hard {
+    @apply text-red-400;
   }
 }
 
@@ -116,4 +127,34 @@
 
 .hex-conquered {
   transition: all 0.5s ease-out;
+}
+
+/* Task table styles */
+.task-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.task-table th {
+  text-align: left;
+  padding: 12px 16px;
+  font-weight: 500;
+  color: var(--aoe-gold);
+  border-bottom: 1px solid var(--aoe-border);
+}
+
+.task-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--aoe-border);
+}
+
+.task-table tr:hover {
+  background-color: rgba(42, 58, 85, 0.3);
+}
+
+.task-type-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }

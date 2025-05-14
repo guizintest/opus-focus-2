@@ -56,9 +56,9 @@ export default function MapsPage() {
         onMoodChange={handleMoodChange}
       />
 
-      <div className="container mx-auto p-4 flex-1">
+      <div className="container mx-auto p-6 flex-1">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-aoe-gold font-cinzel">Mapas</h1>
+          <h1 className="text-2xl font-bold text-aoe-gold font-cinzel">MAPAS</h1>
           <AoE4Button>Criar Novo Mapa</AoE4Button>
         </div>
 
