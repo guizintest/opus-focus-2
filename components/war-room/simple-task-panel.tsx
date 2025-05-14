@@ -2,60 +2,16 @@
 
 import { Star, Clock } from "lucide-react"
 import { AoE4Button } from "@/components/aoe4-button"
+import type { Hexagon } from "@/types/supabase"
 
 interface SimpleTaskPanelProps {
-  selectedHexId: string | null
+  selectedHex: (Hexagon & { status: string }) | null
+  activeHexId: string | null
+  onStartTask: (hexId: string) => void
+  onCompleteTask: (hexId: string) => void
 }
 
-export function SimpleTaskPanel({ selectedHexId }: SimpleTaskPanelProps) {
-  // Dados de exemplo para os hexágonos
-  const hexes = {
-    hex1: {
-      title: "Tarefa Inicial",
-      description: "Uma tarefa fácil para começar o dia",
-      difficulty: "start",
-      points: 10,
-      estimatedTime: "15min",
-    },
-    hex2: {
-      title: "Leitura Básica",
-      description: "Leia o artigo introdutório sobre o tema e faça anotações dos pontos principais.",
-      difficulty: "easy",
-      points: 15,
-      estimatedTime: "15min",
-    },
-    hex3: {
-      title: "Vídeo Tutorial",
-      description: "Assista ao vídeo tutorial e pratique os conceitos apresentados.",
-      difficulty: "easy",
-      points: 20,
-      estimatedTime: "20min",
-    },
-    hex4: {
-      title: "Exercício Prático",
-      description: "Resolva o exercício prático aplicando os conceitos aprendidos.",
-      difficulty: "medium",
-      points: 30,
-      estimatedTime: "30min",
-    },
-    hex5: {
-      title: "Recompensa",
-      description: "Uma recompensa surpresa! Pode ser pontos de foco ou recreação.",
-      difficulty: "reward",
-      points: 25,
-      estimatedTime: "5min",
-    },
-    hex6: {
-      title: "Objetivo Final",
-      description: "Complete este desafio para conquistar o mapa do dia!",
-      difficulty: "special",
-      points: 100,
-      estimatedTime: "60min",
-    },
-  }
-
-  const selectedHex = selectedHexId ? hexes[selectedHexId as keyof typeof hexes] : null
-
+export function SimpleTaskPanel({ selectedHex, activeHexId, onStartTask, onCompleteTask }: SimpleTaskPanelProps) {
   if (!selectedHex) {
     return (
       <div className="p-4 text-aoe-muted flex flex-col items-center justify-center h-full">
@@ -66,6 +22,10 @@ export function SimpleTaskPanel({ selectedHexId }: SimpleTaskPanelProps) {
       </div>
     )
   }
+
+  const isActiveTask = activeHexId === selectedHex.id
+  const canStartTask = selectedHex.status === "available" && !activeHexId
+  const canCompleteTask = isActiveTask
 
   // Determinar a dificuldade em texto
   const getDifficultyText = () => {
@@ -135,7 +95,7 @@ export function SimpleTaskPanel({ selectedHexId }: SimpleTaskPanelProps) {
           <span className="text-sm text-aoe-muted">Tempo estimado:</span>
           <div className="flex items-center">
             <Clock className="h-4 w-4 text-aoe-light mr-1" />
-            <span className="text-sm text-aoe-light">{selectedHex.estimatedTime}</span>
+            <span className="text-sm text-aoe-light">{selectedHex.estimated_time}</span>
           </div>
         </div>
 
@@ -144,11 +104,47 @@ export function SimpleTaskPanel({ selectedHexId }: SimpleTaskPanelProps) {
           <span className="text-sm text-aoe-muted">Valor:</span>
           <span className="text-sm text-aoe-gold">+{selectedHex.points} pontos</span>
         </div>
+
+        {/* Status */}
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-aoe-muted">Status:</span>
+          <span
+            className={`text-sm ${
+              selectedHex.status === "conquered"
+                ? "text-green-400"
+                : selectedHex.status === "available"
+                  ? "text-blue-400"
+                  : "text-red-400"
+            }`}
+          >
+            {selectedHex.status === "conquered"
+              ? "Conquistado"
+              : selectedHex.status === "available"
+                ? "Disponível"
+                : "Bloqueado"}
+          </span>
+        </div>
       </div>
 
       {/* Botão de ação */}
       <div className="mt-6">
-        <AoE4Button className="w-full">Iniciar Tarefa</AoE4Button>
+        {canStartTask ? (
+          <AoE4Button className="w-full" onClick={() => onStartTask(selectedHex.id)}>
+            Iniciar Tarefa
+          </AoE4Button>
+        ) : canCompleteTask ? (
+          <AoE4Button className="w-full" onClick={() => onCompleteTask(selectedHex.id)}>
+            Completar Tarefa
+          </AoE4Button>
+        ) : selectedHex.status === "conquered" ? (
+          <AoE4Button variant="secondary" className="w-full" disabled>
+            Tarefa Concluída
+          </AoE4Button>
+        ) : (
+          <AoE4Button variant="secondary" className="w-full" disabled>
+            Tarefa Bloqueada
+          </AoE4Button>
+        )}
       </div>
     </div>
   )

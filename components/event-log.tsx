@@ -17,6 +17,13 @@ interface EventLogProps {
 export function EventLog({ events = [] }: EventLogProps) {
   const [localEvents, setLocalEvents] = useState<Event[]>(events)
 
+  // Atualizar eventos quando as props mudarem
+  useEffect(() => {
+    if (events.length > 0) {
+      setLocalEvents(events)
+    }
+  }, [events])
+
   // Adicionar alguns eventos de exemplo se não houver eventos
   useEffect(() => {
     if (events.length === 0 && localEvents.length === 0) {
@@ -40,8 +47,6 @@ export function EventLog({ events = [] }: EventLogProps) {
           timestamp: Date.now(),
         },
       ])
-    } else if (events.length > 0) {
-      setLocalEvents(events)
     }
   }, [events])
 

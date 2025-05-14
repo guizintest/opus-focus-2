@@ -3,16 +3,17 @@
 @tailwind utilities;
 
 :root {
-  --aoe-dark-blue: #0f172a;
-  --aoe-panel: #1e293b;
-  --aoe-panel-header: #334155;
-  --aoe-border: #475569;
+  /* Cores originais do tema Age of Empires */
+  --aoe-dark-blue: #0a101f;
+  --aoe-panel: #1a2234;
+  --aoe-panel-header: #2a3347;
+  --aoe-border: #3a4257;
   --aoe-light: #e2e8f0;
   --aoe-muted: #94a3b8;
-  --aoe-gold: #f59e0b;
-  --aoe-button: #27272a;
-  --aoe-button-hover: #3f3f46;
-  --aoe-map-bg: #1a1a2e;
+  --aoe-gold: #d4af37;
+  --aoe-button: #2a3347;
+  --aoe-button-hover: #3a4257;
+  --aoe-map-bg: #0f1525;
 }
 
 @layer base {
@@ -54,6 +55,65 @@
   }
 }
 
+/* Estilos específicos para a fonte Cinzel */
 .font-cinzel {
   font-family: "Cinzel", serif;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* Estilos para hexágonos */
+.hex-difficulty-easy {
+  background-color: #3b82f6; /* Azul */
+}
+
+.hex-difficulty-medium {
+  background-color: #8b5cf6; /* Roxo */
+}
+
+.hex-difficulty-hard {
+  background-color: #ef4444; /* Vermelho */
+}
+
+.hex-difficulty-reward {
+  background-color: #10b981; /* Verde */
+}
+
+.hex-difficulty-special {
+  background-color: #f59e0b; /* Âmbar */
+}
+
+.hex-difficulty-start {
+  background-color: #14b8a6; /* Teal */
+}
+
+/* Estilos para o grid hexagonal */
+.hex-grid {
+  position: relative;
+  box-sizing: border-box;
+}
+
+.hex-grid * {
+  box-sizing: border-box;
+}
+
+/* Animações para hexágonos */
+@keyframes pulse-border {
+  0% {
+    box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(212, 175, 55, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(212, 175, 55, 0);
+  }
+}
+
+.hex-selected {
+  animation: pulse-border 2s infinite;
+}
+
+.hex-conquered {
+  transition: all 0.5s ease-out;
 }
