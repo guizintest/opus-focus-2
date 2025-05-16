@@ -1,0 +1,1722 @@
+# PROMPT DETALHADO - GUARDIÃO DO FOCO (OPUS FOCUS 2)
+
+## VISÃO GERAL DO PROJETO
+
+O "Guardião do Foco" (Opus Focus 2) é um aplicativo gamificado para gerenciamento de foco e produtividade, inspirado na estética e mecânicas do jogo Age of Empires. Utiliza uma abordagem de gamificação para transformar o gerenciamento de tarefas e foco em uma experiência envolvente e motivadora.
+
+O aplicativo permite que os usuários:
+- Gerenciem suas tarefas diárias
+- Conquistem "territórios" em um mapa hexagonal
+- Ganhem pontos por completar atividades
+- Defendam-se da "Névoa da Distração" através de um sistema de equilíbrio entre foco e recreação
+
+## STACK TECNOLÓGICA
+
+- **Frontend**: Next.js 15.2, React 19, TypeScript, Tailwind CSS
+- **Backend**: Supabase (Autenticação, Banco de Dados PostgreSQL, Storage)
+- **UI/UX**: Radix UI, Lucide React (ícones), Custom Age of Empires-inspired components
+- **State Management**: React Context API, Custom Hooks
+- **Outros**: date-fns, react-hook-form, zod
+
+## TEMA VISUAL
+
+O aplicativo segue uma estética inspirada no jogo Age of Empires, com:
+- Paleta de cores escura com detalhes dourados (aoe-dark-blue, aoe-gold)
+- Fonte Cinzel para títulos e cabeçalhos (estilo medieval/antigo)
+- Componentes personalizados inspirados na UI do Age of Empires (botões, painéis, recursos)
+- Grade hexagonal para o mapa do dia
+
+## ESTRUTURA DO BANCO DE DADOS
+
+Principais tabelas do Supabase:
+
+```
+users: Autenticação e informações básicas de usuário
+user_profiles: Informações detalhadas do perfil, recursos, humor
+tasks: Tarefas do usuário com tipo, dificuldade, pontos
+daily_maps: Mapas diários gerados para o usuário
+hexagons: Elementos do mapa hexagonal diário
+hex_connections: Conexões entre hexágonos no mapa
+user_hex_progress: Rastreamento de progresso do usuário no mapa
+user_events: Log de eventos do usuário (conclusão de tarefas, ataques de névoa, etc.)
+```
+
+## FUNCIONALIDADES PRINCIPAIS
+
+### 1. SISTEMA DE AUTENTICAÇÃO
+
+```tsx
+// auth-context.tsx
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
+import { getSupabaseClient } from "@/lib/supabase/client"
+import type { Session, User } from "@supabase/supabase-js"
+import { useRouter } from "next/navigation"
+
+type AuthContextType = {
+  user: User | null
+  session: Session | null
+  loading: boolean
+  signIn: (email: string, password: string) => Promise<{ error: any | null }>
+  signUp: (email: string, password: string, username: string) => Promise<{ error: any | null; user: User | null }>
+  signOut: () => Promise<void>
+  resetPassword: (email: string) => Promise<{ error: any | null }>
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
+  const supabase = getSupabaseClient()
+
+  useEffect(() => {
+    // Verificar se há uma sessão ativa
+    const initializeAuth = async () => {
+      setLoading(true)
+      try {
+        // Obter sessão atual
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+        setSession(session)
+        setUser(session?.user || null)
+
+        // Configurar listener para mudanças na autenticação
+        const {
+          data: { subscription },
+        } = await supabase.auth.onAuthStateChange((_event, session) => {
+          setSession(session)
+          setUser(session?.user || null)
+          router.refresh()
+        })
+
+        return () => subscription.unsubscribe()
+      } catch (error) {
+        console.error("Erro ao inicializar autenticação:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    initializeAuth()
+  }, [supabase, router])
+
+  // Função para login
+  const signIn = async (email: string, password: string) => {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      return { error }
+    } catch (error) {
+      console.error("Erro ao fazer login:", error)
+      return { error }
+    }
+  }
+
+  // Função para registro
+  const signUp = async (email: string, password: string, username: string) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username,
+          },
+        },
+      })
+
+      // Se o registro for bem-sucedido, criar perfil do usuário
+      if (data.user && !error) {
+        // Criar perfil do usuário
+        const { error: profileError } = await supabase.from("user_profiles").insert({
+          id: data.user.id,
+          username,
+          focus_points: 100,
+          recreation_points: 50,
+          current_mood: "normal",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+
+        if (profileError) {
+          console.error("Erro ao criar perfil do usuário:", profileError)
+          return { error: profileError, user: null }
+        }
+      }
+
+      return { error, user: data.user }
+    } catch (error) {
+      console.error("Erro ao registrar:", error)
+      return { error, user: null }
+    }
+  }
+
+  // Função para logout
+  const signOut = async () => {
+    try {
+      await supabase.auth.signOut()
+      router.push("/login")
+    } catch (error) {
+      console.error("Erro ao fazer logout:", error)
+    }
+  }
+
+  // Função para redefinir senha
+  const resetPassword = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      })
+      return { error }
+    } catch (error) {
+      console.error("Erro ao redefinir senha:", error)
+      return { error }
+    }
+  }
+
+  const value = {
+    user,
+    session,
+    loading,
+    signIn,
+    signUp,
+    signOut,
+    resetPassword,
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error("useAuth deve ser usado dentro de um AuthProvider")
+  }
+  return context
+}
+```
+
+### 2. SISTEMA DE RECURSOS (BARRA DE RECURSOS)
+
+```tsx
+// resource-bar.tsx
+"use client"
+
+import { useState } from "react"
+import { Smile, Meh, Frown } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+
+type MoodType = "good" | "normal" | "bad"
+
+interface ResourceBarProps {
+  focus: number
+  recreation: number
+  mood: MoodType
+  dayProgress: number
+  onMoodChange: (mood: MoodType) => void
+}
+
+export function ResourceBar({ focus, recreation, mood, dayProgress, onMoodChange }: ResourceBarProps) {
+  const [showMoodSelector, setShowMoodSelector] = useState(false)
+
+  // Formatar o tempo restante do dia (para demonstração)
+  const formatTimeRemaining = () => {
+    const hours = Math.floor(dayProgress / 60)
+    const minutes = dayProgress % 60
+    return `${hours}h ${minutes}m`
+  }
+
+  return (
+    <div className="bg-aoe-panel border-b border-aoe-border p-2 flex items-center justify-between">
+      {/* Recursos */}
+      <div className="flex items-center space-x-6">
+        {/* Pontos de Foco */}
+        <div className="flex items-center">
+          <div className="w-8 h-8 rounded-full bg-blue-900 flex items-center justify-center mr-2">
+            <span className="text-blue-200 font-bold text-sm">F</span>
+          </div>
+          <div>
+            <p className="text-aoe-light text-xs">Pontos de Foco</p>
+            <p className="text-aoe-gold font-bold">{focus}</p>
+          </div>
+        </div>
+
+        {/* Pontos de Recreação */}
+        <div className="flex items-center">
+          <div className="w-8 h-8 rounded-full bg-green-900 flex items-center justify-center mr-2">
+            <span className="text-green-200 font-bold text-sm">R</span>
+          </div>
+          <div>
+            <p className="text-aoe-light text-xs">Recreação</p>
+            <p className="text-aoe-gold font-bold">{recreation} min</p>
+          </div>
+        </div>
+
+        {/* Humor */}
+        <div className="flex items-center relative">
+          <div
+            className="w-8 h-8 rounded-full bg-purple-900 flex items-center justify-center mr-2 cursor-pointer"
+            onClick={() => setShowMoodSelector(!showMoodSelector)}
+          >
+            {mood === "good" && <Smile className="h-5 w-5 text-purple-200" />}
+            {mood === "normal" && <Meh className="h-5 w-5 text-purple-200" />}
+            {mood === "bad" && <Frown className="h-5 w-5 text-purple-200" />}
+          </div>
+          <div>
+            <p className="text-aoe-light text-xs">Humor</p>
+            <p className="text-aoe-gold font-bold capitalize">
+              {mood === "good" && "Bom"}
+              {mood === "normal" && "Normal"}
+              {mood === "bad" && "Ruim"}
+            </p>
+          </div>
+
+          {/* Seletor de humor */}
+          {showMoodSelector && (
+            <div className="absolute top-full left-0 mt-2 bg-aoe-panel border border-aoe-border rounded-md p-2 z-20 flex space-x-2">
+              <button
+                className={`p-1 rounded-md ${mood === "good" ? "bg-purple-900" : "hover:bg-aoe-dark-blue"}`}
+                onClick={() => {
+                  onMoodChange("good")
+                  setShowMoodSelector(false)
+                }}
+              >
+                <Smile className="h-6 w-6 text-purple-200" />
+              </button>
+              <button
+                className={`p-1 rounded-md ${mood === "normal" ? "bg-purple-900" : "hover:bg-aoe-dark-blue"}`}
+                onClick={() => {
+                  onMoodChange("normal")
+                  setShowMoodSelector(false)
+                }}
+              >
+                <Meh className="h-6 w-6 text-purple-200" />
+              </button>
+              <button
+                className={`p-1 rounded-md ${mood === "bad" ? "bg-purple-900" : "hover:bg-aoe-dark-blue"}`}
+                onClick={() => {
+                  onMoodChange("bad")
+                  setShowMoodSelector(false)
+                }}
+              >
+                <Frown className="h-6 w-6 text-purple-200" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Progresso do dia */}
+      <div className="flex items-center space-x-3">
+        <div className="text-right">
+          <p className="text-aoe-light text-xs">Tempo Restante</p>
+          <p className="text-aoe-gold font-bold">{formatTimeRemaining()}</p>
+        </div>
+        <div className="w-32">
+          <Progress value={dayProgress} max={100} className="h-2" />
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+### 3. SISTEMA DE HEXÁGONOS (MAPA)
+
+#### 3.1. UTILIDADES PARA HEXÁGONOS
+
+```tsx
+// hex-utils.ts
+// Constantes para o tamanho do hexágono
+export const HEX_SIZE = 50 // Raio do hexágono (distância do centro até um vértice)
+export const HEX_WIDTH = Math.sqrt(3) * HEX_SIZE // Largura do hexágono pointy-topped
+export const HEX_HEIGHT = 2 * HEX_SIZE // Altura do hexágono pointy-topped
+export const HEX_HORIZ_DISTANCE = HEX_WIDTH // Distância horizontal entre centros
+export const HEX_VERT_DISTANCE = HEX_HEIGHT * 0.75 // Distância vertical entre centros
+
+// Coordenadas axiais (q, r, s) para coordenadas de pixel (x, y)
+export function hexToPixel(q: number, r: number): { x: number; y: number } {
+  const x = HEX_SIZE * Math.sqrt(3) * (q + r / 2)
+  const y = ((HEX_SIZE * 3) / 2) * r
+  return { x, y }
+}
+
+// Coordenadas de pixel (x, y) para coordenadas axiais (q, r, s)
+export function pixelToHex(x: number, y: number): { q: number; r: number; s: number } {
+  const q = ((Math.sqrt(3) / 3) * x - (1 / 3) * y) / HEX_SIZE
+  const r = ((2 / 3) * y) / HEX_SIZE
+  const s = -q - r // Em coordenadas axiais, q + r + s = 0
+  return { q, r, s }
+}
+
+// Arredondar para o hexágono mais próximo
+export function hexRound(q: number, r: number, s: number): { q: number; r: number; s: number } {
+  let roundQ = Math.round(q)
+  let roundR = Math.round(r)
+  let roundS = Math.round(s)
+
+  const qDiff = Math.abs(roundQ - q)
+  const rDiff = Math.abs(roundR - r)
+  const sDiff = Math.abs(roundS - s)
+
+  if (qDiff > rDiff && qDiff > sDiff) {
+    roundQ = -roundR - roundS
+  } else if (rDiff > sDiff) {
+    roundR = -roundQ - roundS
+  } else {
+    roundS = -roundQ - roundR
+  }
+
+  return { q: roundQ, r: roundR, s: roundS }
+}
+
+// Obter os vizinhos de um hexágono
+export function getHexNeighbors(q: number, r: number): Array<{ q: number; r: number; s: number }> {
+  const directions = [
+    { q: 1, r: 0, s: -1 },
+    { q: 1, r: -1, s: 0 },
+    { q: 0, r: -1, s: 1 },
+    { q: -1, r: 0, s: 1 },
+    { q: -1, r: 1, s: 0 },
+    { q: 0, r: 1, s: -1 },
+  ]
+
+  return directions.map((dir) => ({
+    q: q + dir.q,
+    r: r + dir.r,
+    s: -q - r - dir.q - dir.r,
+  }))
+}
+
+// Gerar pontos para desenhar um hexágono SVG
+export function getHexPoints(centerX: number, centerY: number): string {
+  const points = []
+  for (let i = 0; i < 6; i++) {
+    const angleDeg = 60 * i - 30
+    const angleRad = (Math.PI / 180) * angleDeg
+    const x = centerX + HEX_SIZE * Math.cos(angleRad)
+    const y = centerY + HEX_SIZE * Math.sin(angleRad)
+    points.push(`${x},${y}`)
+  }
+  return points.join(" ")
+}
+
+// Verificar se dois hexágonos são vizinhos
+export function areNeighbors(hex1: { q: number; r: number }, hex2: { q: number; r: number }): boolean {
+  const s1 = -hex1.q - hex1.r
+  const s2 = -hex2.q - hex2.r
+
+  const dq = Math.abs(hex1.q - hex2.q)
+  const dr = Math.abs(hex1.r - hex2.r)
+  const ds = Math.abs(s1 - s2)
+
+  return (dq + dr + ds) / 2 === 1
+}
+```
+
+#### 3.2. COMPONENTE DE GRADE HEXAGONAL
+
+```tsx
+// simple-hex-grid.tsx
+"use client"
+import { Book, Code, Video, Trophy, Flag, Lock, CheckCircle } from "lucide-react"
+import type React from "react"
+
+import { useEffect, useState, useRef } from "react"
+import { hexToPixel, HEX_SIZE } from "@/lib/hex-utils"
+import type { Hexagon } from "@/types/supabase"
+
+interface SimpleHexProps {
+  id: string
+  title: string
+  type: string
+  difficulty: string
+  status: string
+  position_q: number
+  position_r: number
+  position_s: number
+  isSelected: boolean
+  onClick: (id: string) => void
+}
+
+function SimpleHex({
+  id,
+  title,
+  type,
+  difficulty,
+  status,
+  position_q,
+  position_r,
+  position_s,
+  isSelected,
+  onClick,
+}: SimpleHexProps) {
+  // Determinar a cor base do hexágono com base na dificuldade
+  const getBaseColor = () => {
+    switch (difficulty) {
+      case "easy":
+        return "hex-difficulty-easy"
+      case "medium":
+        return "hex-difficulty-medium"
+      case "hard":
+        return "hex-difficulty-hard"
+      case "reward":
+        return "hex-difficulty-reward"
+      case "special":
+        return "hex-difficulty-special"
+      case "start":
+        return "hex-difficulty-start"
+      default:
+        return "bg-gray-600"
+    }
+  }
+
+  // Determinar o ícone com base no tipo
+  const getIcon = () => {
+    switch (type) {
+      case "reading":
+        return <Book className="h-6 w-6" />
+      case "coding":
+        return <Code className="h-6 w-6" />
+      case "video":
+        return <Video className="h-6 w-6" />
+      case "reward":
+        return <Trophy className="h-6 w-6" />
+      case "start":
+      default:
+        return <Flag className="h-6 w-6" />
+    }
+  }
+
+  // Determinar classes adicionais com base no status
+  const getStatusClasses = () => {
+    switch (status) {
+      case "locked":
+        return "opacity-50 grayscale"
+      case "available":
+        return "opacity-100"
+      case "conquered":
+        return "opacity-100 ring-4 ring-aoe-gold ring-opacity-80 hex-conquered"
+      default:
+        return ""
+    }
+  }
+
+  // Calcular a posição do hexágono
+  const { x, y } = hexToPixel(position_q, position_r)
+
+  return (
+    <div
+      className={`absolute ${getBaseColor()} ${getStatusClasses()} ${
+        isSelected ? "ring-4 ring-white hex-selected" : ""
+      } cursor-pointer hover:brightness-110 transition-all duration-200`}
+      style={{
+        width: `${HEX_SIZE * 2}px`,
+        height: `${HEX_SIZE * 2}px`,
+        clipPath: `polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)`,
+        transform: `translate(${x - HEX_SIZE}px, ${y - HEX_SIZE}px)`,
+      }}
+      onClick={() => onClick(id)}
+      data-q={position_q}
+      data-r={position_r}
+    >
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+        {status === "locked" && <Lock className="absolute top-2 right-2 h-4 w-4 text-gray-300" />}
+        {status === "conquered" && <CheckCircle className="absolute top-2 right-2 h-4 w-4 text-green-300" />}
+        <div className="flex items-center justify-center h-12 w-12 rounded-full bg-black/20">{getIcon()}</div>
+        <div className="mt-1 text-xs font-bold text-center px-2 truncate max-w-full">{title}</div>
+      </div>
+    </div>
+  )
+}
+
+interface SimpleHexGridProps {
+  hexagons: Array<Hexagon & { status: string }>
+  connections: Array<{ from: { q: number; r: number }; to: { q: number; r: number } }>
+  selectedHexId: string | null
+  onSelectHex: (id: string) => void
+}
+
+export function SimpleHexGrid({ hexagons, connections, selectedHexId, onSelectHex }: SimpleHexGridProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
+  const [gridCenter, setGridCenter] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+
+  useEffect(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      setGridCenter({
+        x: rect.width / 2,
+        y: rect.height / 2,
+      })
+    }
+  }, [])
+
+  // Manipuladores de eventos para arrastar o mapa
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true)
+    setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging) {
+      setPan({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y,
+      })
+    }
+  }
+
+  const handleMouseUp = () => {
+    setIsDragging(false)
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full h-full overflow-hidden bg-aoe-map-bg"
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+    >
+      {/* Grid background pattern */}
+      <svg width="100%" height="100%" className="absolute inset-0 opacity-10">
+        <defs>
+          <pattern id="hexPattern" width="100" height="115" patternUnits="userSpaceOnUse">
+            <path d="M50,0 L100,25 L100,75 L50,100 L0,75 L0,25 Z" fill="none" stroke="white" strokeWidth="1" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#hexPattern)" />
+      </svg>
+
+      {/* Centering container */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="relative" style={{ width: "800px", height: "600px" }}>
+          {/* SVG para as conexões */}
+          <svg
+            ref={svgRef}
+            width="100%"
+            height="100%"
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+              transformOrigin: "center",
+            }}
+          >
+            {connections.map((connection, index) => {
+              const fromPos = hexToPixel(connection.from.q, connection.from.r)
+              const toPos = hexToPixel(connection.to.q, connection.to.r)
+
+              return (
+                <line
+                  key={index}
+                  x1={fromPos.x}
+                  y1={fromPos.y}
+                  x2={toPos.x}
+                  y2={toPos.y}
+                  stroke="rgba(255, 255, 255, 0.3)"
+                  strokeWidth="2"
+                />
+              )
+            })}
+          </svg>
+
+          {/* Hexágonos */}
+          <div
+            className="absolute inset-0"
+            style={{
+              transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+              transformOrigin: "center",
+            }}
+          >
+            {hexagons.map((hex) => (
+              <SimpleHex
+                key={hex.id}
+                id={hex.id}
+                title={hex.title}
+                type={hex.type}
+                difficulty={hex.difficulty}
+                status={hex.status}
+                position_q={hex.position_q}
+                position_r={hex.position_r}
+                position_s={hex.position_s}
+                isSelected={selectedHexId === hex.id}
+                onClick={onSelectHex}
+              />
+            ))}
+          </div>
+
+          {/* Controles de zoom */}
+          <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
+            <button
+              className="w-8 h-8 bg-aoe-panel border border-aoe-border rounded-md flex items-center justify-center text-aoe-light hover:bg-aoe-button"
+              onClick={() => setZoom((prev) => Math.min(prev + 0.1, 2))}
+            >
+              +
+            </button>
+            <button
+              className="w-8 h-8 bg-aoe-panel border border-aoe-border rounded-md flex items-center justify-center text-aoe-light hover:bg-aoe-button"
+              onClick={() => setZoom((prev) => Math.max(prev - 0.1, 0.5))}
+            >
+              -
+            </button>
+            <button
+              className="w-8 h-8 bg-aoe-panel border border-aoe-border rounded-md flex items-center justify-center text-aoe-light hover:bg-aoe-button"
+              onClick={() => {
+                setZoom(1)
+                setPan({ x: 0, y: 0 })
+              }}
+            >
+              R
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+#### 3.3. HOOK PARA GERENCIAR MAPAS HEXAGONAIS
+
+```tsx
+// use-hex-map.ts
+"use client"
+
+import { useState, useEffect } from "react"
+import { getSupabaseClient } from "@/lib/supabase/client"
+import { areNeighbors } from "@/lib/hex-utils"
+import type { Hexagon, HexConnection, UserHexProgress } from "@/types/supabase"
+import { useRouter } from "next/navigation"
+
+export function useHexMap({ userId }: { userId: string }) {
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [hexagons, setHexagons] = useState<Hexagon[]>([])
+  const [connections, setConnections] = useState<HexConnection[]>([])
+  const [userProgress, setUserProgress] = useState<UserHexProgress[]>([])
+  const [selectedHexId, setSelectedHexId] = useState<string | null>(null)
+  const [activeHexId, setActiveHexId] = useState<string | null>(null)
+  const [mapId, setMapId] = useState<string | null>(null)
+
+  const supabase = getSupabaseClient()
+  const router = useRouter()
+
+  // Carregar dados do mapa e progresso do usuário
+  useEffect(() => {
+    async function loadMapData() {
+      try {
+        setLoading(true)
+        setError(null)
+
+        // Obter a data atual no formato ISO (YYYY-MM-DD)
+        const today = new Date().toISOString().split("T")[0]
+
+        // Buscar o mapa ativo para hoje
+        const { data: mapData, error: mapError } = await supabase
+          .from("daily_maps")
+          .select("*")
+          .eq("is_active", true)
+          .eq("day_date", today)
+          .single()
+
+        if (mapError) {
+          if (mapError.code === "PGRST116") {
+            // Código para "não encontrado"
+            router.push("/war-room/no-map")
+            return
+          }
+          throw new Error(`Erro ao buscar mapa diário: ${mapError.message}`)
+        }
+
+        if (!mapData) {
+          router.push("/war-room/no-map")
+          return
+        }
+
+        // Armazenar o ID do mapa
+        setMapId(mapData.id)
+
+        // Carregar hexágonos do mapa
+        const { data: hexData, error: hexError } = await supabase.from("hexagons").select("*").eq("map_id", mapData.id)
+
+        if (hexError) {
+          throw new Error(`Erro ao carregar hexágonos: ${hexError.message}`)
+        }
+
+        // Carregar conexões entre hexágonos
+        const { data: connData, error: connError } = await supabase
+          .from("hex_connections")
+          .select("*")
+          .eq("map_id", mapData.id)
+
+        if (connError) {
+          throw new Error(`Erro ao carregar conexões: ${connError.message}`)
+        }
+
+        // Carregar progresso do usuário
+        const { data: progressData, error: progressError } = await supabase
+          .from("user_hex_progress")
+          .select("*")
+          .eq("user_id", userId)
+          .eq("map_id", mapData.id)
+
+        if (progressError) {
+          throw new Error(`Erro ao carregar progresso: ${progressError.message}`)
+        }
+
+        // Se não houver progresso, inicializar
+        if (progressData.length === 0 && hexData) {
+          await initializeUserProgress(hexData, userId, mapData.id)
+        } else {
+          setUserProgress(progressData)
+        }
+
+        // Atualizar estado
+        setHexagons(hexData || [])
+        setConnections(connData || [])
+      } catch (err) {
+        console.error("Erro ao carregar dados do mapa:", err)
+        setError(err instanceof Error ? err.message : "Erro desconhecido")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (userId) {
+      loadMapData()
+    }
+  }, [userId, supabase, router])
+
+  // Inicializar progresso do usuário se não existir
+  async function initializeUserProgress(hexes: Hexagon[], userId: string, mapId: string) {
+    try {
+      // Encontrar o hexágono inicial (geralmente com difficulty = "start")
+      const startHex = hexes.find((hex) => hex.difficulty === "start")
+
+      if (!startHex) {
+        console.warn("Hexágono inicial não encontrado, usando o primeiro hexágono da lista")
+        // Se não encontrar um hexágono inicial, usar o primeiro da lista
+        const firstHex = hexes[0]
+        if (!firstHex) {
+          throw new Error("Nenhum hexágono encontrado no mapa")
+        }
+
+        // Criar progresso para cada hexágono
+        const progressData = hexes.map((hex) => ({
+          user_id: userId,
+          map_id: mapId,
+          hex_id: hex.id,
+          status: hex.id === firstHex.id ? "available" : "locked",
+          conquered_at: null,
+        }))
+
+        // Inserir no banco de dados
+        const { data, error } = await supabase.from("user_hex_progress").insert(progressData).select()
+
+        if (error) {
+          throw new Error(`Erro ao inicializar progresso: ${error.message}`)
+        }
+
+        setUserProgress(data)
+        return
+      }
+
+      // Criar progresso para cada hexágono
+      const progressData = hexes.map((hex) => ({
+        user_id: userId,
+        map_id: mapId,
+        hex_id: hex.id,
+        status: hex.id === startHex.id ? "available" : "locked",
+        conquered_at: null,
+      }))
+
+      // Inserir no banco de dados
+      const { data, error } = await supabase.from("user_hex_progress").insert(progressData).select()
+
+      if (error) {
+        throw new Error(`Erro ao inicializar progresso: ${error.message}`)
+      }
+
+      setUserProgress(data)
+    } catch (err) {
+      console.error("Erro ao inicializar progresso:", err)
+      setError(err instanceof Error ? err.message : "Erro desconhecido")
+    }
+  }
+
+  // Obter hexágonos com status do usuário
+  const hexagonsWithStatus = hexagons.map((hex) => {
+    const progress = userProgress.find((p) => p.hex_id === hex.id)
+    return {
+      ...hex,
+      status: progress?.status || "locked",
+      conqueredAt: progress?.conquered_at,
+    }
+  })
+
+  // Selecionar um hexágono
+  const handleSelectHex = (hexId: string) => {
+    const hex = hexagonsWithStatus.find((h) => h.id === hexId)
+    if (hex && (hex.status === "available" || hex.status === "conquered")) {
+      setSelectedHexId(hexId)
+    }
+  }
+
+  // Iniciar uma tarefa (hexágono)
+  const handleStartTask = async (hexId: string) => {
+    try {
+      // Verificar se o hexágono está disponível
+      const hex = hexagonsWithStatus.find((h) => h.id === hexId)
+      if (!hex || hex.status !== "available") {
+        throw new Error("Hexágono não disponível")
+      }
+
+      // Atualizar estado local
+      setActiveHexId(hexId)
+
+      // Registrar evento no banco de dados
+      await supabase.from("user_events").insert({
+        user_id: userId,
+        map_id: mapId,
+        event_type: "task_started",
+        event_data: { hex_id: hexId },
+      })
+
+      return true
+    } catch (err) {
+      console.error("Erro ao iniciar tarefa:", err)
+      setError(err instanceof Error ? err.message : "Erro desconhecido")
+      return false
+    }
+  }
+
+  // Completar uma tarefa (hexágono)
+  const handleCompleteTask = async (hexId: string) => {
+    try {
+      // Verificar se é a tarefa ativa
+      if (activeHexId !== hexId) {
+        throw new Error("Esta não é a tarefa ativa")
+      }
+
+      // Atualizar status no banco de dados
+      const { error: updateError } = await supabase
+        .from("user_hex_progress")
+        .update({
+          status: "conquered",
+          conquered_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId)
+        .eq("map_id", mapId)
+        .eq("hex_id", hexId)
+
+      if (updateError) {
+        throw new Error(`Erro ao atualizar status: ${updateError.message}`)
+      }
+
+      // Desbloquear hexágonos vizinhos
+      await unlockNeighborHexes(hexId)
+
+      // Atualizar estado local
+      setActiveHexId(null)
+
+      // Atualizar progresso do usuário
+      const { data: updatedProgress, error: progressError } = await supabase
+        .from("user_hex_progress")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("map_id", mapId)
+
+      if (progressError) {
+        throw new Error(`Erro ao carregar progresso atualizado: ${progressError.message}`)
+      }
+
+      setUserProgress(updatedProgress)
+
+      // Registrar evento no banco de dados
+      await supabase.from("user_events").insert({
+        user_id: userId,
+        map_id: mapId,
+        event_type: "task_completed",
+        event_data: { hex_id: hexId },
+      })
+
+      return true
+    } catch (err) {
+      console.error("Erro ao completar tarefa:", err)
+      setError(err instanceof Error ? err.message : "Erro desconhecido")
+      return false
+    }
+  }
+
+  // Desbloquear hexágonos vizinhos
+  async function unlockNeighborHexes(hexId: string) {
+    try {
+      // Encontrar o hexágono conquistado
+      const conqueredHex = hexagons.find((h) => h.id === hexId)
+      if (!conqueredHex) return
+
+      // Encontrar todos os hexágonos vizinhos
+      const neighbors = hexagons.filter((h) =>
+        areNeighbors({ q: conqueredHex.position_q, r: conqueredHex.position_r }, { q: h.position_q, r: h.position_r }),
+      )
+
+      // Verificar quais vizinhos estão bloqueados
+      const lockedNeighbors = neighbors.filter((neighbor) => {
+        const progress = userProgress.find((p) => p.hex_id === neighbor.id)
+        return progress?.status === "locked"
+      })
+
+      // Desbloquear vizinhos
+      if (lockedNeighbors.length > 0) {
+        const updates = lockedNeighbors.map((neighbor) => ({
+          user_id: userId,
+          map_id: mapId,
+          hex_id: neighbor.id,
+          status: "available",
+        }))
+
+        const { error } = await supabase
+          .from("user_hex_progress")
+          .upsert(updates, { onConflict: "user_id,map_id,hex_id" })
+
+        if (error) {
+          throw new Error(`Erro ao desbloquear vizinhos: ${error.message}`)
+        }
+      }
+    } catch (err) {
+      console.error("Erro ao desbloquear vizinhos:", err)
+      setError(err instanceof Error ? err.message : "Erro desconhecido")
+    }
+  }
+
+  // Verificar se o mapa está completo
+  const isMapCompleted = () => {
+    // Verificar se todos os hexágonos não-recompensa foram conquistados
+    const requiredHexes = hexagonsWithStatus.filter((h) => h.difficulty !== "reward")
+    return requiredHexes.every((h) => h.status === "conquered")
+  }
+
+  // Verificar se o hexágono especial foi conquistado
+  const isSpecialHexCompleted = () => {
+    const specialHex = hexagonsWithStatus.find((h) => h.difficulty === "special")
+    return specialHex?.status === "conquered"
+  }
+
+  return {
+    loading,
+    error,
+    hexagons: hexagonsWithStatus,
+    connections,
+    selectedHexId,
+    activeHexId,
+    handleSelectHex,
+    handleStartTask,
+    handleCompleteTask,
+    isMapCompleted,
+    isSpecialHexCompleted,
+  }
+}
+```
+
+### 4. SISTEMA DE GERENCIAMENTO DE TAREFAS
+
+```tsx
+// tasks/page.tsx (parcial)
+"use client"
+
+import { useState, useEffect } from "react"
+import { AoE4Button } from "@/components/aoe4-button"
+import { TopMenu } from "@/components/top-menu"
+import {
+  Search,
+  Filter,
+  Edit,
+  Trash,
+  Book,
+  Video,
+  Code,
+  FileText,
+  GraduationCapIcon as Graduation,
+  CheckCircle,
+  Circle,
+} from "lucide-react"
+import { Modal } from "@/components/ui/modal"
+import { AddTaskForm } from "@/components/tasks/add-task-form"
+import { TaskFilters, type TaskFilters as TaskFiltersType } from "@/components/tasks/task-filters"
+import { ActiveFilters } from "@/components/tasks/active-filters"
+import { getSupabaseClient } from "@/lib/supabase/client"
+import { useRouter } from "next/navigation"
+import { EditTaskForm } from "@/components/tasks/edit-task-form"
+import { toggleTaskCompletion } from "@/lib/services/task-service"
+
+interface Task {
+  id: string
+  title: string
+  type: string
+  difficulty: string
+  points: number
+  validation: string
+  estimated_time?: string
+  completed: boolean
+  completed_at?: string
+}
+
+export default function TasksPage() {
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [filteredTasks, setFilteredTasks] = useState<Task[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filters, setFilters] = useState<TaskFiltersType>({
+    types: [],
+    difficulties: [],
+    validations: [],
+    completionStatus: null,
+  })
+  const router = useRouter()
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [taskToEdit, setTaskToEdit] = useState<Task | null>(null)
+  const [completionLoading, setCompletionLoading] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchTasks = async () => {
+      setIsLoading(true)
+      try {
+        const supabase = getSupabaseClient()
+
+        // Get current user
+        const { data: userData } = await supabase.auth.getUser()
+        if (!userData?.user) {
+          router.push("/login")
+          return
+        }
+
+        // Get tasks
+        const { data, error } = await supabase
+          .from("tasks")
+          .select("*")
+          .eq("user_id", userData.user.id)
+          .order("created_at", { ascending: false })
+
+        if (error) {
+          console.error("Error fetching tasks:", error)
+          return
+        }
+
+        setTasks(data || [])
+        setFilteredTasks(data || [])
+      } catch (error) {
+        console.error("Error:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchTasks()
+  }, [router])
+
+  // Apply filters and search whenever they change
+  useEffect(() => {
+    let result = [...tasks]
+
+    // Apply search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      result = result.filter((task) => task.title.toLowerCase().includes(query))
+    }
+
+    // Apply completion status filter
+    if (filters.completionStatus) {
+      if (filters.completionStatus === "completed") {
+        result = result.filter((task) => task.completed)
+      } else if (filters.completionStatus === "incomplete") {
+        result = result.filter((task) => !task.completed)
+      }
+    }
+
+    // Apply type filters
+    if (filters.types.length > 0) {
+      result = result.filter((task) => filters.types.includes(task.type))
+    }
+
+    // Apply difficulty filters
+    if (filters.difficulties.length > 0) {
+      result = result.filter((task) => filters.difficulties.includes(task.difficulty))
+    }
+
+    // Apply validation filters
+    if (filters.validations.length > 0) {
+      result = result.filter((task) => filters.validations.includes(task.validation))
+    }
+
+    setFilteredTasks(result)
+  }, [tasks, searchQuery, filters])
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (!confirm("Tem certeza que deseja excluir esta tarefa?")) return
+
+    try {
+      const supabase = getSupabaseClient()
+      const { error } = await supabase.from("tasks").delete().eq("id", taskId)
+
+      if (error) {
+        console.error("Error deleting task:", error)
+        return
+      }
+
+      // Update local state
+      const updatedTasks = tasks.filter((task) => task.id !== taskId)
+      setTasks(updatedTasks)
+    } catch (error) {
+      console.error("Error:", error)
+    }
+  }
+
+  const handleToggleCompletion = async (taskId: string, currentStatus: boolean) => {
+    setCompletionLoading(taskId)
+    try {
+      await toggleTaskCompletion(taskId, !currentStatus)
+
+      // Update local state
+      const updatedTasks = tasks.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              completed: !currentStatus,
+              completed_at: !currentStatus ? new Date().toISOString() : undefined,
+            }
+          : task,
+      )
+      setTasks(updatedTasks)
+    } catch (error) {
+      console.error("Error toggling task completion:", error)
+    } finally {
+      setCompletionLoading(null)
+    }
+  }
+
+  // ... restante do código
+}
+```
+
+### 5. COMPONENTE DE BOTÃO NO ESTILO AGE OF EMPIRES
+
+```tsx
+// aoe4-button.tsx
+import { forwardRef } from "react"
+import { cn } from "@/lib/utils"
+
+interface AoE4ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: "primary" | "secondary" | "danger" | "success"
+  size?: "sm" | "md" | "lg"
+  icon?: React.ReactNode
+  iconPosition?: "left" | "right"
+}
+
+export const AoE4Button = forwardRef<HTMLButtonElement, AoE4ButtonProps>(
+  (
+    { className, variant = "primary", size = "md", icon, iconPosition = "left", children, disabled, ...props },
+    ref,
+  ) => {
+    // Base classes for all buttons
+    const baseClasses =
+      "relative font-cinzel uppercase tracking-wide border transition-colors focus:outline-none focus:ring-2 focus:ring-aoe-gold focus:ring-offset-2 focus:ring-offset-aoe-dark-blue disabled:opacity-50 disabled:cursor-not-allowed"
+
+    // Variant-specific classes
+    const variantClasses = {
+      primary:
+        "bg-aoe-button-gradient border-aoe-gold/50 text-aoe-gold hover:bg-aoe-button-gradient-hover active:bg-aoe-button-active",
+      secondary:
+        "bg-aoe-dark-blue border-aoe-border text-aoe-light hover:bg-aoe-panel hover:border-aoe-gold/30 active:bg-aoe-dark-blue",
+      danger:
+        "bg-gradient-to-b from-red-800 to-red-900 border-red-600/50 text-red-100 hover:from-red-700 hover:to-red-800 active:from-red-900 active:to-red-800",
+      success:
+        "bg-gradient-to-b from-green-800 to-green-900 border-green-600/50 text-green-100 hover:from-green-700 hover:to-green-800 active:from-green-900 active:to-green-800",
+    }
+
+    // Size-specific classes
+    const sizeClasses = {
+      sm: "text-xs px-3 py-1",
+      md: "text-sm px-4 py-2",
+      lg: "text-base px-6 py-3",
+    }
+
+    // Main button classes
+    const buttonClasses = cn(baseClasses, variantClasses[variant], sizeClasses[size], className)
+
+    return (
+      <button ref={ref} className={buttonClasses} disabled={disabled} {...props}>
+        <div className="absolute inset-0 rounded-sm bg-black/10 pointer-events-none"></div>
+        <div className="flex items-center justify-center">
+          {icon && iconPosition === "left" && <span className="mr-2">{icon}</span>}
+          {children}
+          {icon && iconPosition === "right" && <span className="ml-2">{icon}</span>}
+        </div>
+      </button>
+    )
+  },
+)
+
+AoE4Button.displayName = "AoE4Button"
+```
+
+### 6. SALA DE GUERRA (WAR-ROOM)
+
+```tsx
+// war-room/page.tsx
+"use client"
+
+import { useState, useEffect } from "react"
+import { TopMenu } from "@/components/top-menu"
+import { ResourceBar } from "@/components/resource-bar"
+import { SimpleMissionPanel } from "@/components/war-room/simple-mission-panel"
+import { SimpleHexGrid } from "@/components/war-room/simple-hex-grid"
+import { SimpleTaskPanel } from "@/components/war-room/simple-task-panel"
+import { EventLog } from "@/components/event-log"
+import { AoE4Button } from "@/components/aoe4-button"
+import { Loader2 } from "lucide-react"
+import { useHexMap } from "@/hooks/use-hex-map"
+import { generateDailyMapId } from "@/lib/map-utils"
+import { getSupabaseClient } from "@/lib/supabase/client"
+import { useRouter } from "next/navigation"
+
+export default function WarRoomPage() {
+  const router = useRouter()
+  const [userId, setUserId] = useState<string | null>(null)
+  const [userProfile, setUserProfile] = useState({
+    focus_points: 100,
+    recreation_points: 30,
+    current_mood: "normal" as "good" | "normal" | "bad",
+  })
+  const [events, setEvents] = useState<Array<{ id: string; message: string; type: string; timestamp: number }>>([])
+
+  // Obter o ID do usuário atual
+  useEffect(() => {
+    const fetchUserId = async () => {
+      const supabase = getSupabaseClient()
+      const { data } = await supabase.auth.getUser()
+
+      if (data?.user) {
+        setUserId(data.user.id)
+      } else {
+        // Redirecionar para login se não estiver autenticado
+        router.push("/login")
+      }
+    }
+
+    fetchUserId()
+  }, [router])
+
+  // Adicionar um estado para armazenar o mapId
+  const [mapId, setMapId] = useState<string | null>(null)
+
+  // Obter o ID do mapa diário
+  useEffect(() => {
+    const dailyMapId = generateDailyMapId()
+    setMapId(dailyMapId)
+  }, [])
+
+  // Usar o hook de mapa hexagonal
+  const {
+    loading,
+    error,
+    hexagons,
+    connections,
+    selectedHexId,
+    activeHexId,
+    handleSelectHex,
+    handleStartTask,
+    handleCompleteTask,
+    isMapCompleted,
+    isSpecialHexCompleted,
+  } = useHexMap({
+    userId: userId || "",
+  })
+
+  // Obter o hexágono selecionado
+  const selectedHex = selectedHexId ? hexagons.find((hex) => hex.id === selectedHexId) : null
+
+  // Carregar eventos do usuário
+  useEffect(() => {
+    const loadEvents = async () => {
+      if (!userId || !mapId) return
+
+      const supabase = getSupabaseClient()
+      const { data, error } = await supabase
+        .from("user_events")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("map_id", mapId)
+        .order("created_at", { ascending: false })
+        .limit(10)
+
+      if (!error && data) {
+        const formattedEvents = data.map((event) => ({
+          id: event.id,
+          message: getEventMessage(event.event_type, event.event_data),
+          type: getEventType(event.event_type),
+          timestamp: new Date(event.created_at).getTime(),
+        }))
+        setEvents(formattedEvents)
+      }
+    }
+
+    if (userId && mapId) {
+      loadEvents()
+      // Configurar um intervalo para atualizar os eventos
+      const interval = setInterval(loadEvents, 30000)
+      return () => clearInterval(interval)
+    }
+  }, [userId, mapId])
+
+  // Função para formatar mensagens de eventos
+  const getEventMessage = (eventType: string, eventData: any) => {
+    switch (eventType) {
+      case "task_started":
+        const startHex = hexagons.find((h) => h.id === eventData.hex_id)
+        return `Iniciou a tarefa: ${startHex?.title || "Desconhecida"}`
+      case "task_completed":
+        const completeHex = hexagons.find((h) => h.id === eventData.hex_id)
+        return `Completou a tarefa: ${completeHex?.title || "Desconhecida"}`
+      case "map_completed":
+        return "Completou o mapa do dia!"
+      case "fog_attack":
+        return "Sofreu um ataque da Névoa da Distração"
+      case "fog_defended":
+        return "Defendeu-se com sucesso de um ataque da Névoa"
+      default:
+        return "Evento desconhecido"
+    }
+  }
+
+  // Função para determinar o tipo de evento
+  const getEventType = (eventType: string) => {
+    switch (eventType) {
+      case "task_completed":
+      case "map_completed":
+      case "fog_defended":
+        return "success"
+      case "fog_attack":
+        return "danger"
+      case "task_started":
+        return "info"
+      default:
+        return "info"
+    }
+  }
+
+  // Função para lidar com a mudança de humor
+  const handleMoodChange = async (mood: "good" | "normal" | "bad") => {
+    if (!userId) return
+
+    setUserProfile((prev) => ({ ...prev, current_mood: mood }))
+
+    // Atualizar no banco de dados
+    const supabase = getSupabaseClient()
+    await supabase.from("user_profiles").update({ current_mood: mood }).eq("id", userId)
+  }
+
+  // Função para iniciar o modo de recreação
+  const handleStartRecreation = async () => {
+    if (!userId || userProfile.recreation_points < 30) return
+
+    // Atualizar pontos de recreação
+    setUserProfile((prev) => ({
+      ...prev,
+      recreation_points: prev.recreation_points - 30,
+    }))
+
+    // Atualizar no banco de dados
+    const supabase = getSupabaseClient()
+    await supabase
+      .from("user_profiles")
+      .update({
+        recreation_points: userProfile.recreation_points - 30,
+      })
+      .eq("id", userId)
+
+    // Registrar evento
+    await supabase.from("user_events").insert({
+      user_id: userId,
+      map_id: mapId,
+      event_type: "recreation_started",
+      event_data: { duration: 30 },
+    })
+
+    // Adicionar evento à lista local
+    setEvents((prev) => [
+      {
+        id: `recreation-${Date.now()}`,
+        message: "Iniciou modo de recreação por 30 minutos",
+        type: "info",
+        timestamp: Date.now(),
+      },
+      ...prev,
+    ])
+  }
+
+  // Converter conexões para o formato esperado pelo SimpleHexGrid
+  const formattedConnections = connections.map((conn) => ({
+    from: {
+      q: hexagons.find((h) => h.id === conn.from_hex_id)?.position_q || 0,
+      r: hexagons.find((h) => h.id === conn.from_hex_id)?.position_r || 0,
+    },
+    to: {
+      q: hexagons.find((h) => h.id === conn.to_hex_id)?.position_q || 0,
+      r: hexagons.find((h) => h.id === conn.to_hex_id)?.position_r || 0,
+    },
+  }))
+
+  if (loading || !userId || !mapId) {
+    return (
+      <div className="flex flex-col h-screen bg-aoe-dark-blue items-center justify-center">
+        <Loader2 className="h-12 w-12 text-aoe-gold animate-spin mb-4" />
+        <p className="text-aoe-light text-lg">Carregando Mapa do Dia...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col h-screen bg-aoe-dark-blue items-center justify-center">
+        <p className="text-red-400 text-lg mb-4">Erro ao carregar o mapa: {error}</p>
+        <AoE4Button onClick={() => router.push("/war-room/generate")}>Gerar Novo Mapa</AoE4Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col h-screen bg-aoe-dark-blue">
+      <TopMenu activeItem="mapa-do-dia" />
+
+      <ResourceBar
+        focus={userProfile.focus_points}
+        recreation={userProfile.recreation_points}
+        mood={userProfile.current_mood}
+        dayProgress={40}
+        onMoodChange={handleMoodChange}
+      />
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* Painel de missões */}
+        <div className="w-64 border-r border-aoe-border bg-aoe-panel">
+          <SimpleMissionPanel />
+        </div>
+
+        {/* Área central - Mapa */}
+        <div className="flex-1 relative">
+          <SimpleHexGrid
+            hexagons={hexagons}
+            connections={formattedConnections}
+            selectedHexId={selectedHexId}
+            onSelectHex={handleSelectHex}
+          />
+
+          <div className="absolute bottom-4 left-4">
+            <AoE4Button onClick={handleStartRecreation} disabled={userProfile.recreation_points < 30}>
+              Iniciar Recreação (30 min)
+            </AoE4Button>
+          </div>
+        </div>
+
+        {/* Painel lateral direito */}
+        <div className="w-80 border-l border-aoe-border flex flex-col bg-aoe-panel">
+          {/* Detalhes da tarefa */}
+          <div className="h-1/2 border-b border-aoe-border">
+            <SimpleTaskPanel
+              selectedHex={selectedHex}
+              activeHexId={activeHexId}
+              onStartTask={handleStartTask}
+              onCompleteTask={handleCompleteTask}
+            />
+          </div>
+
+          {/* Log de eventos */}
+          <div className="h-1/2">
+            <EventLog events={events} />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+## ESTRUTURA DAS TABELAS DO BANCO DE DADOS SUPABASE
+
+```sql
+-- Tabela de usuários (criada pelo Supabase Auth)
+CREATE TABLE auth.users (
+  id UUID REFERENCES auth.users NOT NULL PRIMARY KEY,
+  email TEXT,
+  -- Outros campos do Supabase Auth
+);
+
+-- Perfis de usuários
+CREATE TABLE public.user_profiles (
+  id UUID REFERENCES auth.users NOT NULL PRIMARY KEY,
+  username TEXT NOT NULL,
+  focus_points INTEGER NOT NULL DEFAULT 100,
+  recreation_points INTEGER NOT NULL DEFAULT 50,
+  current_mood TEXT NOT NULL DEFAULT 'normal',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tarefas
+CREATE TABLE public.tasks (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  type TEXT NOT NULL, -- leitura, video, codigo, notebook, curso
+  difficulty TEXT NOT NULL, -- fácil, médio, difícil
+  points INTEGER NOT NULL,
+  validation TEXT NOT NULL, -- tempo, verificação, honra
+  estimated_time TEXT,
+  url TEXT,
+  completed BOOLEAN NOT NULL DEFAULT FALSE,
+  completed_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Mapas diários
+CREATE TABLE public.daily_maps (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  day_date DATE NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Hexágonos do mapa
+CREATE TABLE public.hexagons (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  map_id UUID REFERENCES public.daily_maps NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  type TEXT NOT NULL, -- reading, coding, video, reward, start
+  difficulty TEXT NOT NULL, -- easy, medium, hard, reward, special, start
+  position_q INTEGER NOT NULL,
+  position_r INTEGER NOT NULL,
+  position_s INTEGER NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Conexões entre hexágonos
+CREATE TABLE public.hex_connections (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  map_id UUID REFERENCES public.daily_maps NOT NULL,
+  from_hex_id UUID REFERENCES public.hexagons NOT NULL,
+  to_hex_id UUID REFERENCES public.hexagons NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(map_id, from_hex_id, to_hex_id)
+);
+
+-- Progresso do usuário no mapa
+CREATE TABLE public.user_hex_progress (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users NOT NULL,
+  map_id UUID REFERENCES public.daily_maps NOT NULL,
+  hex_id UUID REFERENCES public.hexagons NOT NULL,
+  status TEXT NOT NULL, -- locked, available, conquered
+  conquered_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, map_id, hex_id)
+);
+
+-- Eventos do usuário
+CREATE TABLE public.user_events (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users NOT NULL,
+  map_id UUID REFERENCES public.daily_maps,
+  event_type TEXT NOT NULL, -- task_started, task_completed, map_completed, fog_attack, fog_defended, recreation_started
+  event_data JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+## INSTRUÇÕES PARA REPLICAR O APLICATIVO
+
+Para replicar exatamente este aplicativo, siga estas etapas:
+
+1. **Configure o projeto Next.js**:
+   - Crie um novo projeto com `npx create-next-app opus-focus-2`
+   - Instale as dependências listadas no arquivo package.json
+   - Configure o Tailwind CSS para incluir as cores personalizadas:
+     ```js
+     // tailwind.config.ts
+     module.exports = {
+       theme: {
+         extend: {
+           colors: {
+             'aoe-dark-blue': '#1a2133',
+             'aoe-panel': '#252e41',
+             'aoe-gold': '#d4af37',
+             'aoe-light': '#f0f0e0',
+             'aoe-border': '#3a465c',
+             'aoe-muted': '#8896ab',
+           },
+           backgroundImage: {
+             'aoe-button-gradient': 'linear-gradient(to bottom, #3a3620, #261e0e)',
+             'aoe-button-gradient-hover': 'linear-gradient(to bottom, #4a4630, #362e1e)',
+             'aoe-map-bg': 'url("/images/map-bg.jpg")',
+           },
+         },
+         fontFamily: {
+           'cinzel': ['Cinzel', 'serif'],
+         },
+       },
+     }
+     ```
+
+2. **Configure o Supabase**:
+   - Crie uma conta no Supabase e um novo projeto
+   - Configure a autenticação (email/senha)
+   - Crie as tabelas conforme o esquema SQL mostrado anteriormente
+   - Obtenha as chaves de API do Supabase e configure no arquivo .env.local
+
+3. **Implemente os componentes principais**:
+   - Copie e implemente os componentes principais mostrados neste documento
+   - Siga a estrutura de diretórios definida no README.md
+
+4. **Implemente as regras de negócio do sistema**:
+   - Sistema de pontos de foco e recreação
+   - Sistema de humor que afeta a eficiência
+   - Sistema de conquista territorial no mapa hexagonal
+   - Sistema de tarefas e validação de conclusão
+
+5. **Estilização**:
+   - Use a fonte Cinzel para títulos (import na sua folha de estilos global)
+   - Implemente os componentes com o estilo Age of Empires
+   - Use ícones do Lucide React para interface
+
+## CONSIDERAÇÕES ESPECIAIS
+
+1. **Sistema de hexágonos**: A implementação do mapa hexagonal requer compreensão das coordenadas axiais (q, r, s) e da manipulação de grid hexagonal. Este é um dos aspectos mais complexos do aplicativo.
+
+2. **Geração de mapas diários**: O sistema deve gerar um novo mapa hexagonal todos os dias, com configurações de dificuldade e tipos de tarefas variados.
+
+3. **Sistema de "Névoa da Distração"**: Este mecanismo desafia o usuário a manter o foco por meio de "ataques" periódicos que podem ser defendidos com pontos de foco.
+
+4. **Equilíbrio entre foco e recreação**: O aplicativo incentiva um equilíbrio saudável entre períodos de trabalho focado e períodos de descanso por meio do sistema de pontos de recreação.
+
+5. **Estética Age of Empires**: Todos os componentes visuais devem seguir a estética do jogo Age of Empires, com bordas douradas, painéis escuros e fontes estilizadas.
+
+Este prompt detalhado deve fornecer todas as informações necessárias para que um agente de IA replique o aplicativo Guardião do Foco (Opus Focus 2), mantendo fidelidade às suas características, interface e dinâmica.
